@@ -14,20 +14,34 @@
               :key="index"
               class="font-bold text-gray-900"
             >
-              <div class="flex items-center gap-2 py-4">
-                <Input
-                  v-model="headers[index]"
-                  placeholder="Header Name"
-                  @input="updateHeader(index, $event)"
-                  class="border-gray-300"
-                />
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  @click="deleteColumn(index)"
-                >
-                  Delete
-                </Button>
+              <div class="flex flex-col w-full gap-1.5 py-4 px-2">
+                <Label :for="`header-${index}`">Header Name</Label>
+                <div class="flex items-center gap-2">
+                  <Input
+                    v-model="headers[index]"
+                    :id="`header-${index}`"
+                    placeholder="Header Name"
+                    @input="updateHeader(index, $event)"
+                    class="border-gray-300"
+                  />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          @click="deleteColumn(index)"
+                        >
+                          <Trash2Icon class="w-4 h-4" />
+                          Delete
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>this button will remove column from the csv file</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
             </TableHead>
           </TableRow>
@@ -45,6 +59,14 @@
         </TableBody>
       </Table>
     </ScrollArea>
+
+    <div class="flex flex-col py-4">
+      <p class="text-sm text-gray-500">
+        <span class="font-bold text-gray-900">Note* </span>
+        please delete any unwanted columns by clicking the "Delete" button above
+        each column header.
+      </p>
+    </div>
 
     <!-- Download Dialog -->
     <Dialog v-model:open="isDialogOpen">
@@ -106,6 +128,8 @@
 </template>
 
 <script setup lang="ts">
+import { Trash2Icon } from "lucide-vue-next";
+
 // Define types
 interface CsvRow extends Array<string> {}
 
