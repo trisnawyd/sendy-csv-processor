@@ -2,23 +2,24 @@
 <template>
   <div v-if="csvData.length" class="mt-6 text-left">
     <div class="flex justify-between items-center mb-4">
-      <h3 class="text-lg font-semibold">CSV Data</h3>
-      <Button v-if="csvData.length" @click="downloadCsv">Download CSV</Button>
+      <h3 class="text-lg font-semibold text-gray-900">CSV Data</h3>
+      <Button @click="openDownloadDialog"> Download CSV </Button>
     </div>
-    <div class="overflow-x-auto">
+    <ScrollArea class="w-full h-[400px] border border-gray-300 rounded-md">
       <Table>
-        <TableHeader>
+        <TableHeader class="sticky top-0 z-10 bg-white">
           <TableRow>
             <TableHead
               v-for="(header, index) in headers"
               :key="index"
-              class="font-bold text-black"
+              class="font-bold text-gray-900"
             >
               <div class="flex items-center gap-2 py-4">
                 <Input
                   v-model="headers[index]"
                   placeholder="Header Name"
                   @input="updateHeader(index, $event)"
+                  class="border-gray-300"
                 />
                 <Button
                   variant="destructive"
@@ -33,13 +34,47 @@
         </TableHeader>
         <TableBody>
           <TableRow v-for="(row, rowIndex) in csvData" :key="rowIndex">
-            <TableCell v-for="(cell, cellIndex) in row" :key="cellIndex">
+            <TableCell
+              v-for="(cell, cellIndex) in row"
+              :key="cellIndex"
+              class="text-gray-700"
+            >
               {{ cell }}
             </TableCell>
           </TableRow>
         </TableBody>
       </Table>
-    </div>
+    </ScrollArea>
+
+    <!-- Download Dialog -->
+    <Dialog v-model:open="isDialogOpen">
+      <DialogContent class="sm:max-w-md bg-white border-gray-300">
+        <DialogHeader>
+          <DialogTitle class="text-gray-900">Download CSV</DialogTitle>
+          <DialogDescription class="text-gray-600">
+            Enter a file name for your CSV download (e.g., my-data.csv).
+          </DialogDescription>
+        </DialogHeader>
+        <div class="flex items-center space-x-2">
+          <Input
+            v-model="downloadFileName"
+            placeholder="Enter file name"
+            class="border-gray-300"
+            @keyup.enter="confirmDownload"
+          />
+        </div>
+        <DialogFooter class="sm:justify-end">
+          <Button
+            variant="outline"
+            @click="isDialogOpen = false"
+            class="text-gray-700 border-gray-300"
+          >
+            Cancel
+          </Button>
+          <Button @click="confirmDownload"> Download </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
   <div
     v-else
@@ -56,9 +91,13 @@
       ref="fileInput"
       @change="handleFileSelect"
     />
-    <p class="text-gray-600 mb-4">
+    <p class="text-gray-600 mb-4 flex flex-col items-center gap-4">
       Drag and drop a CSV file here or
-      <Button variant="outline" @click="$refs.fileInput.click()">
+      <Button
+        variant="outline"
+        class="w-fit border-gray-300 text-gray-700 hover:bg-gray-100"
+        @click="$refs.fileInput.click()"
+      >
         Select File
       </Button>
     </p>
@@ -76,12 +115,22 @@ const csvData = ref<CsvRow[]>([]);
 const headers = ref<string[]>([]);
 const error = ref<string>("");
 const fileInput = ref<HTMLInputElement | null>(null);
+const isDialogOpen = ref<boolean>(false);
+const downloadFileName = ref<string>("processed.csv");
+const uploadedFileName = ref<string>(""); // Store uploaded file name
+
+// Open the download dialog
+const openDownloadDialog = (): void => {
+  isDialogOpen.value = true;
+  downloadFileName.value = uploadedFileName.value || "processed.csv"; // Use uploaded file name or default
+};
 
 // Handle file drop
 const handleDrop = async (event: DragEvent): Promise<void> => {
   isDragging.value = false;
   const file = event.dataTransfer?.files[0];
   if (file) {
+    uploadedFileName.value = file.name; // Store uploaded file name
     await processFile(file);
   }
 };
@@ -91,6 +140,7 @@ const handleFileSelect = async (event: Event): Promise<void> => {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
   if (file) {
+    uploadedFileName.value = file.name; // Store uploaded file name
     await processFile(file);
   }
 };
@@ -105,24 +155,22 @@ const processFile = async (file: File): Promise<void> => {
   error.value = "";
   try {
     const text = await file.text();
-    const rows = text.split("\n").map(
-      (row: string) =>
-        row.split(",").map((cell) => cell.trim().replace(/^"|"$/g, "")) // Remove surrounding quotes only
-    );
+    const rows = text
+      .split("\n")
+      .map((row: string) =>
+        row.split(",").map((cell) => cell.trim().replace(/^"|"$/g, ""))
+      );
 
-    // Ensure headers are set, use empty string for missing headers
     headers.value = rows[0] || [];
-    // Ensure rows have the same length as headers
     const headerLength = headers.value.length;
     csvData.value = rows
       .slice(1)
       .map((row: CsvRow) => {
-        // Pad or truncate row to match header length
         const newRow = [...row];
         while (newRow.length < headerLength) newRow.push("");
         return newRow.slice(0, headerLength);
       })
-      .filter((row: CsvRow) => row.some((cell) => cell !== "")); // Skip rows with all empty cells
+      .filter((row: CsvRow) => row.some((cell) => cell !== ""));
   } catch (err) {
     error.value = "Error parsing CSV file.";
   }
@@ -148,22 +196,18 @@ const deleteColumn = (index: number): void => {
   }
 };
 
-// Download processed CSV
-const downloadCsv = (): void => {
-  // Use headers and rows as-is, preserving empty cells
-  const cleanHeaders = headers.value;
-  const cleanRows = csvData.value;
-
-  // Skip download if no valid data
-  if (!cleanHeaders.length || !cleanRows.length) {
+// Confirm download with custom file name
+const confirmDownload = (): void => {
+  if (!headers.value.length || !csvData.value.length) {
     error.value = "No valid data to download.";
+    isDialogOpen.value = false;
     return;
   }
 
-  // Wrap headers in double quotes, preserve empty headers as ""
-  const quotedHeaders = cleanHeaders.map((header) => `"${header}"`);
+  const cleanHeaders = headers.value;
+  const cleanRows = csvData.value;
 
-  // Preserve empty cells in rows
+  const quotedHeaders = cleanHeaders.map((header) => `"${header}"`);
   const csvContent = [
     quotedHeaders.join(","),
     ...cleanRows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
@@ -173,8 +217,14 @@ const downloadCsv = (): void => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "processed.csv";
+
+  let fileName = downloadFileName.value.trim();
+  if (!fileName) fileName = uploadedFileName.value || "processed.csv"; // Fallback to uploaded file name
+  if (!fileName.toLowerCase().endsWith(".csv")) fileName += ".csv";
+  a.download = fileName;
+
   a.click();
   URL.revokeObjectURL(url);
+  isDialogOpen.value = false;
 };
 </script>
