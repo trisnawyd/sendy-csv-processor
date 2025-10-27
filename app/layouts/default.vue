@@ -5,7 +5,7 @@
       <slot></slot>
     </main>
     <div class="flex flex-col w-full p-8 items-center justify-center border">
-      Footer
+      Created with vibe coding at Travlr Office &#10084;
     </div>
   </div>
 </template>
